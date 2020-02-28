@@ -1,6 +1,6 @@
-==============================================================
-HistomicsTK |build-status| |codecov-io| |code-health| |gitter|
-==============================================================
+================================================
+HistomicsTK |build-status| |codecov-io| |gitter|
+================================================
 
 .. |build-status| image:: https://travis-ci.org/DigitalSlideArchive/HistomicsTK.svg?branch=master
     :target: https://travis-ci.org/DigitalSlideArchive/HistomicsTK
@@ -10,16 +10,12 @@ HistomicsTK |build-status| |codecov-io| |code-health| |gitter|
     :target: https://codecov.io/github/DigitalSlideArchive/HistomicsTK?branch=master
     :alt: codecov.io
 
-.. |code-health| image:: https://landscape.io/github/DigitalSlideArchive/HistomicsTK/master/landscape.svg?style=flat
-   :target: https://landscape.io/github/DigitalSlideArchive/HistomicsTK/master
-   :alt: Code Health
-
 .. |gitter| image:: https://badges.gitter.im/DigitalSlideArchive/HistomicsTK.svg
    :target: https://gitter.im/DigitalSlideArchive/HistomicsTK?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge
    :alt: Join the chat at https://gitter.im/DigitalSlideArchive/HistomicsTK
 
 HistomicsTK is a Python and REST API for the analysis of Histopathology images
-in association with clinical and genomic data.
+in association with clinical and genomic data. 
 
 Histopathology, which involves the examination of thin-slices of diseased
 tissue at a cellular resolution using a microscope, is regarded as the gold
@@ -39,6 +35,13 @@ pathologists/biologists interested in using state-of-the-art algorithms
 to analyze their data, and algorithm researchers interested in developing
 new/improved algorithms and disseminate them for wider use by the community.
 
+You may view the following introductory videos for more information about
+DSA and HistomicsTK:
+
+- General overview: https://www.youtube.com/watch?v=NenUKZaT--k
+
+- Simple annotation and data management tutorial: https://www.youtube.com/watch?v=HTvLMyKYyGs
+
 HistomicsTK can be used in two ways:
 
 - **As a pure Python package**: This is intended to enable algorithm
@@ -49,15 +52,26 @@ HistomicsTK can be used in two ways:
   `api-docs <https://digitalslidearchive.github.io/HistomicsTK/api-docs.html>`__
   and `examples <https://digitalslidearchive.github.io/HistomicsTK/examples.html>`__
   for more information.
-
-  This can be installed on Linux via ``pip install histomicstk``.
+  
+  Installation instructions on Linux:
+  
+  *To install HistomicsTK using PyPI*::
+  
+  $ python -m pip install histomicstk
+  
+  *To install HistomicsTK from source*::
+  
+  $ git clone https://github.com/DigitalSlideArchive/HistomicsTK/
+  $ cd HistomicsTK/
+  $ python -m pip install setuptools-scm Cython>=1.25.2 scikit-build>=0.8.1 cmake>=0.6.0 numpy>=1.12.1
+  $ python -m pip install -e .
 
   HistomicsTK uses the `large_image`_ library to read and various microscopy
   image formats.  Depending on your exact system, installing the necessary 
   libraries to support these formats can be complex.  There are some
   non-official prebuilt libraries available for Linux that can be included as
   part of the installation by specifying 
-  ``pip install histomicstk --find-links https://manthey.github.io/large_image_wheels``.
+  ``pip install histomicstk --find-links https://girder.github.io/large_image_wheels``.
   Note that if you previously installed HistomicsTK or large_image without
   these, you may need to add ``--force-reinstall --no-cache-dir`` to the
   ``pip install`` command to force it to use the find-links option.

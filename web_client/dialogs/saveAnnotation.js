@@ -23,12 +23,31 @@ var SaveAnnotation = View.extend({
         // clean up old colorpickers when rerendering
         this.$('.h-colorpicker').colorpicker('destroy');
 
+        const showStyleEditor = this.annotation.get('annotation').elements && !this.annotation._pageElements;
+        const defaultStyles = {};
+
+        if (showStyleEditor) {
+            const elements = this.annotation.get('annotation').elements;
+            console.assert(elements.length > 0); // otherwise we wouldn't show the style editor
+            const firstElement = elements[0];
+            if (elements.every((d) => d.lineWidth === firstElement.lineWidth)) {
+                defaultStyles.lineWidth = firstElement.lineWidth;
+            }
+            if (elements.every((d) => d.lineColor === firstElement.lineColor)) {
+                defaultStyles.lineColor = firstElement.lineColor;
+            }
+            if (elements.every((d) => d.fillColor === firstElement.fillColor)) {
+                defaultStyles.fillColor = firstElement.fillColor;
+            }
+        }
+
         this.$el.html(
             saveAnnotation({
                 title: this.options.title,
                 hasAdmin: this.annotation.get('_accessLevel') >= AccessType.ADMIN,
                 annotation: this.annotation.toJSON().annotation,
-                showStyleEditor: this.annotation.get('annotation').elements && !this.annotation._pageElements
+                showStyleEditor,
+                defaultStyles
             })
         ).girderModal(this);
         this.$('.h-colorpicker').colorpicker();
@@ -60,30 +79,51 @@ var SaveAnnotation = View.extend({
      */
     save(evt) {
         evt.preventDefault();
+
+        let validation = '';
+
         if (!this.$('#h-annotation-name').val()) {
-            this.$('#h-annotation-name').parent()
-                .addClass('has-error');
-            this.$('.g-validation-failed-message')
-                .text('Please enter a name.')
-                .removeClass('hidden');
-            return;
+            this.$('#h-annotation-name').parent().addClass('has-error');
+            validation += 'Please enter a name. ';
         }
 
         const setFillColor = !!this.$('#h-annotation-fill-color').val();
         const fillColor = tinycolor(this.$('#h-annotation-fill-color').val()).toRgbString();
         const setLineColor = !!this.$('#h-annotation-line-color').val();
         const lineColor = tinycolor(this.$('#h-annotation-line-color').val()).toRgbString();
+        const setLineWidth = !!this.$('#h-annotation-line-width').val();
+        const lineWidth = parseFloat(this.$('#h-annotation-line-width').val());
 
-        if (setFillColor || setLineColor) {
-            this.annotation.get('annotation').elements.forEach((element) => {
+        if (setLineWidth && (lineWidth < 0 || !isFinite(lineWidth))) {
+            validation += 'Invalid line width. ';
+            this.$('#h-annotation-line-width').parent().addClass('has-error');
+        }
+
+        if (validation) {
+            this.$('.g-validation-failed-message').text(validation.trim())
+                .removeClass('hidden');
+            return;
+        }
+
+        // all valid
+
+        if (setFillColor || setLineColor || setLineWidth) {
+            this.annotation.elements().each((element) => { /* eslint-disable backbone/no-silent */
                 if (setFillColor) {
-                    element.fillColor = fillColor;
+                    element.set('fillColor', fillColor, {silent: true});
                 }
                 if (setLineColor) {
-                    element.lineColor = lineColor;
+                    element.set('lineColor', lineColor, {silent: true});
+                }
+                if (setLineWidth) {
+                    element.set('lineWidth', lineWidth, {silent: true});
                 }
             });
+            const annotationData = _.extend({}, this.annotation.get('annotation'));
+            annotationData.elements = this.annotation.elements().toJSON();
+            this.annotation.set('annotation', annotationData);
         }
+
         _.extend(this.annotation.get('annotation'), {
             name: this.$('#h-annotation-name').val(),
             description: this.$('#h-annotation-description').val()
@@ -114,7 +154,7 @@ var dialog = new SaveAnnotation({
  * @returns {SaveAnnotation} The dialog's view
  */
 function show(annotation, options) {
-    _.defaults(options, {'title': 'Create annotation'});
+    _.defaults(options, { title: 'Create annotation' });
     dialog.annotation = annotation;
     dialog.options = options;
     dialog.setElement('#g-dialog-container').render();

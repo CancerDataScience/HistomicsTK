@@ -14,13 +14,14 @@ from shapely.ops import cascaded_union
 from PIL import Image
 from imageio import imread
 from histomicstk.annotations_and_masks.masks_to_annotations_handler import (
-    Conditional_Print, get_contours_from_mask, _parse_annot_coords,
+    get_contours_from_mask, _parse_annot_coords,
     _discard_nonenclosed_background_group)
+from histomicstk.utils.general_utils import Base_HTK_Class
 
 # %% =====================================================================
 
 
-class Polygon_merger(object):
+class Polygon_merger(Base_HTK_Class):
     """Methods to merge polygons in tiled masks."""
 
     def __init__(self, maskpaths, GTCodes_df, **kwargs):
@@ -32,7 +33,7 @@ class Polygon_merger(object):
             list of strings representing pathos to masks
         GTCodes_df : pandas DataFrame
             the ground truth codes and information dataframe.
-            This is a dataframe that is indexed by the annotation group name
+            This is a dataframe that MUST BE indexed by annotation group name
             and has the following columns.
 
             group: str
@@ -73,45 +74,39 @@ class Polygon_merger(object):
         self.maskpaths = maskpaths
         self.GTCodes_df = GTCodes_df
 
+        # must have an roi group color for merged polygon bbox
+        if 'roi' not in self.GTCodes_df.index:
+            self.GTCodes_df.loc['roi', 'color'] = 'rgb(0,0,0)'
+
         # see: https://stackoverflow.com/questions/8187082/how-can-you-set-...
         # class-attributes-from-variable-arguments-kwargs-in-python
+
+        contkwargs = {
+            'GTCodes_df': GTCodes_df,
+            'get_roi_contour': False,  # important
+            'discard_nonenclosed_background': False,  # important
+            'MIN_SIZE': 2,
+            'MAX_SIZE': None,
+        }
+        if 'contkwargs' in kwargs.keys():
+            contkwargs.update(kwargs['contkwargs'])
+        kwargs['contkwargs'] = contkwargs
+
         default_attr = {
             'verbose': 1,
             'monitorPrefix': "",
             'merge_thresh': 3,
-            'contkwargs': {
-                'GTCodes_df': GTCodes_df,
-                'get_roi_contour': False,  # important
-                'discard_nonenclosed_background': False,  # important
-                'MIN_SIZE': 2,
-                'MAX_SIZE': None,
-            },
             'discard_nonenclosed_background': False,
             'background_group': 'mostly_stroma',
             'roi_group': 'roi',
         }
-        more_allowed_attr = ['', ]
-        allowed_attr = list(default_attr.keys()) + more_allowed_attr
         default_attr.update(kwargs)
-        self.__dict__.update(
-            (k, v) for k, v in default_attr.items() if k in allowed_attr)
-
-        # To NOT silently ignore rejected keys
-        rejected_keys = set(kwargs.keys()) - set(allowed_attr)
-        if rejected_keys:
-            raise ValueError(
-                "Invalid arguments in constructor:{}".format(rejected_keys))
+        super(Polygon_merger, self).__init__(default_attr=default_attr)
 
         # some sanity checks
         assert not (
             self.contkwargs['get_roi_contour']
             or self.contkwargs['discard_nonenclosed_background'])
-
-        # verbosity control
-        self.cpr1 = Conditional_Print(verbose=self.verbose == 1)
-        self._print1 = self.cpr1._print
-        self.cpr2 = Conditional_Print(verbose=self.verbose == 2)
-        self._print2 = self.cpr2._print
         self.contkwargs['verbose'] = self.verbose > 1
 
     # %% =====================================================================
@@ -135,15 +130,29 @@ class Polygon_merger(object):
         ordinary_contours = dict()
         edge_contours = dict()
 
+        to_remove = []
+
         for midx, maskpath in enumerate(self.maskpaths):
 
-            # extract contours
+            # read mask
             MASK = imread(maskpath)
+
+            # mask is empty!
+            if MASK.sum() < 2:
+                to_remove.append(maskpath)
+                continue
+
+            # extract contours
             contours_df = get_contours_from_mask(
                 MASK=MASK,
                 monitorPrefix="%s: mask %d of %d" % (
                     monitorPrefix, midx, len(self.maskpaths)),
                 **self.contkwargs)
+
+            # no contours!
+            if contours_df.shape[0] < 1:
+                to_remove.append(maskpath)
+                continue
 
             # separate edge from non-edge contours
             edgeids = []
@@ -154,6 +163,8 @@ class Polygon_merger(object):
             roiname = os.path.split(maskpath)[1]
             edge_contours[roiname] = contours_df.loc[edgeids, :].copy()
             ordinary_contours[roiname] = contours_df.drop(edgeids, axis=0)
+
+        self.maskpaths = [j for j in self.maskpaths if j not in to_remove]
 
         self.ordinary_contours = ordinary_contours
         self.edge_contours = edge_contours
@@ -390,7 +401,7 @@ class Polygon_merger(object):
         while keep_going:
             self._print2("%s: level %d" % (monitorPrefix, level))
             merge_groups['level-%d' % (level+1)] = []
-            reference = merge_groups['level-%d' % (level)].copy()
+            reference = merge_groups['level-%d' % (level)][:]
             # compare each cluster to the others in current level
             for gid, mgroup in enumerate(merge_groups['level-%d' % (level)]):
                 for gid2, mgroup2 in enumerate(reference):

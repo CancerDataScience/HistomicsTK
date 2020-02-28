@@ -1,7 +1,7 @@
 extends ./panel.pug
 
 block title
-  | #[span.icon-tags] #{title}
+  | #[span.icon-tags] #[span.icon-spin1.animate-spin.save-mark(title="Saving Annotations")] #{title}
 
 block content
   .btn-group.h-hide-show-buttons(role='group')
@@ -17,6 +17,9 @@ block content
     span.h-annotation-fill-opacity-container(title=`Annotation fill opacity ${(fillOpacity * 100).toFixed()}%`)
       input#h-annotation-fill-opacity(
           type="range", min="0", max="1", step="0.01", value=fillOpacity)
+    .btn-group.btn-group-sm(role='group')
+      button.btn.btn-default.h-annotation-select-by-region(type='button', title='Select annotations by region.  Keyboard shortcut: s')
+        | #[span.icon-marquee]
 
   - var groups = _.keys(annotationGroups);
   - groups.sort();
@@ -36,6 +39,7 @@ block content
         each annotation in annotations
           - var name = annotation.get('annotation').name;
           - var displayed = annotation.get('displayed');
+          - var partial = annotation._centroids && annotation._centroids.partial
           - var loading = annotation.get('loading');
           - var classes = [];
           if annotation.id === activeAnnotation
@@ -47,7 +51,7 @@ block content
               span.icon-spin3.animate-spin.h-float-left
             else if displayed
               span.icon-eye.h-toggle-annotation.h-float-left(
-                title='Hide annotation')
+                title='Hide annotation' + (partial ? '.  Annotation is only partially loaded' : ''), class=partial ? 'partial' : '')
             else
               span.icon-eye-off.h-toggle-annotation.h-float-left(
                 title='Show annotation')
@@ -63,7 +67,7 @@ block content
                   download=name + '.json')
                 span.icon-download.h-download-annotation(
                     title='Download annotation')
-
+  
   .checkbox.h-annotation-toggle
     label(title='Show annotation labels when hovering with the mouse.')
       input#h-toggle-labels(type='checkbox', checked=showLabels)
@@ -71,6 +75,7 @@ block content
     label(title='Highlight annotations when hovering with the mouse.')
       input#h-toggle-interactive(type='checkbox', checked=interactiveMode)
       | Interactive
-    button.btn.btn-sm.btn-primary.h-create-annotation
-      | #[span.icon-plus-squared] New
+    if accessLevel >= writeAccessLevel
+      button.btn.btn-sm.btn-primary.h-create-annotation
+        | #[span.icon-plus-squared] New        
     .clearfix

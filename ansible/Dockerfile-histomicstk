@@ -1,10 +1,10 @@
 # 18.04 also works
 FROM ubuntu:16.04
-MAINTAINER David Manthey <david.manthey@kitware.com>
+LABEL maintainer="Kitware, Inc. <kitware@kitware.com>"
 
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get --yes --no-install-recommends -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" dist-upgrade && \
-    apt-get install -y --no-install-recommends git python2.7-dev python-pip libssl-dev sudo net-tools vim locales apt-utils python-setuptools \
+    apt-get install -y --no-install-recommends git python2.7-dev python-pip libssl-dev sudo net-tools vim locales apt-utils python-setuptools nano \
     # Install packages for routing to mongodb
     iptables dnsutils \
     # Install some additional packages for convenience when testing with bash
@@ -47,11 +47,6 @@ RUN ansible-playbook -i inventory/local docker_ansible.yml --extra-vars=docker=h
                 /root/.npm \
                 /opt/histomicstk/logs/*.log \
                 /opt/histomicstk/girder/node_modules \
-                /opt/histomicstk/openjpeg-* \
-                /opt/histomicstk/openslide-* \
-                /opt/histomicstk/tiff-* \
-                /opt/histomicstk/vips-* \
-                /opt/histomicstk/ImageMagick* \
                 /opt/histomicstk/HistomicsTK/_skbuild \
                 /opt/histomicstk/large_image/build \
                 /opt/histomicstk/HistomicsTK/.eggs \

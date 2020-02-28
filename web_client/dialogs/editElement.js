@@ -36,7 +36,7 @@ var EditElement = View.extend({
         var validation = '';
 
         var label = this.$('#h-element-label').val();
-        data.label = label ? {value: label} : {};
+        data.label = label ? { value: label } : {};
         var group = this.$('#h-group-name').val();
         data.group = group && group !== 'default' ? group : undefined;
 
@@ -65,6 +65,7 @@ var EditElement = View.extend({
             return;
         }
 
+        this.trigger('h:editElement', {element: this.annotationElement, data: data});
         this.annotationElement.set(data);
         this.$el.modal('hide');
     },

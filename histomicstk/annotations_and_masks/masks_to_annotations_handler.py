@@ -10,20 +10,7 @@ import numpy as np
 from pandas import DataFrame, concat
 import cv2
 from shapely.geometry.polygon import Polygon
-
-# %% =====================================================================
-
-
-class Conditional_Print(object):
-    """Print to screen if certain conditions are satisfied (Internal)."""
-
-    def __init__(self, verbose=True):
-        """Init. This is for PEP compliance."""
-        self.verbose = verbose
-
-    def _print(self, text):
-        if self.verbose:
-            print(text)
+from histomicstk.utils.general_utils import Print_and_log
 
 # %% =====================================================================
 
@@ -90,9 +77,9 @@ def _add_contour_to_df(
     # get coordinates for this contour. These are in x,y format.
     outer_cidx = conts['outer_contours'][cidx, 4]
     cont_outer = conts['contour_group'][outer_cidx][:, 0, :]
-    assert cont_outer.shape[0] > 3, \
-        "%s: TOO SIMPLE (%d coordinates) -- IGNORED" % (
-        monitorPrefix, cont_outer.shape[0])
+    if cont_outer.shape[0] <= 3:
+        raise Exception("%s: TOO SIMPLE (%d coordinates) -- IGNORED" % (
+            monitorPrefix, cont_outer.shape[0]))
 
     # Get index of first child (hole)
     inner_cidx = conts['outer_contours'][cidx, 2]
@@ -106,15 +93,16 @@ def _add_contour_to_df(
     xmax = xmin + nest_width
 
     # ignore nests that are too small
-    assert ((nest_height > MIN_SIZE) and (nest_width > MIN_SIZE)), \
-        "%s: TOO SMALL (%d x %d pixels) -- IGNORED" % (
-        monitorPrefix, nest_height, nest_width)
+    if (nest_height < MIN_SIZE) or (nest_width < MIN_SIZE):
+        raise Exception("%s: TOO SMALL (%d x %d pixels) -- IGNORED" % (
+            monitorPrefix, nest_height, nest_width))
 
     # ignore extremely large nests -- THESE MAY CAUSE SEGMENTATION FAULTS
     if MAX_SIZE is not None:
-        assert ((nest_height < MAX_SIZE) and (nest_width < MAX_SIZE)), \
-            "%s: EXTREMELY LARGE NEST (%d x %d pixels) -- IGNORED" % (
-                monitorPrefix, nest_height, nest_width)
+        if (nest_height > MAX_SIZE) or (nest_width > MAX_SIZE):
+            raise Exception(
+                "%s: EXTREMELY LARGE NEST (%d x %d pixels) -- IGNORED"
+                % (monitorPrefix, nest_height, nest_width))
 
     # assign bounding box location
     ridx = contours_df.shape[0]
@@ -152,7 +140,7 @@ def _get_contours_df(
         MASK, GTCodes_df, groups_to_get=None, MIN_SIZE=30, MAX_SIZE=None,
         verbose=False, monitorPrefix=""):
     """Parse ground truth mask and gets countours (Internal)."""
-    cpr = Conditional_Print(verbose=verbose)
+    cpr = Print_and_log(verbose=verbose)
     _print = cpr._print
 
     # pad with zeros to be able to detect edge contours later
@@ -193,7 +181,7 @@ def _get_contours_df(
                     pad_margin=pad_margin, MIN_SIZE=MIN_SIZE,
                     MAX_SIZE=MAX_SIZE, monitorPrefix=nestcountStr)
 
-            except AssertionError as e:
+            except Exception as e:
                 _print(e)
                 continue
 
@@ -226,7 +214,7 @@ def _discard_nonenclosed_background_group(
     (Internal).
 
     """
-    cpr = Conditional_Print(verbose=verbose)
+    cpr = Print_and_log(verbose=verbose)
     _print = cpr._print
 
     # isolate background contours and non-background contours with holes
@@ -372,7 +360,9 @@ def get_contours_from_mask(
             vertix y coordinated comma-separated values
 
     """
-    cpr = Conditional_Print(verbose=verbose)
+    if MASK.sum() < 3:
+        raise Exception("Mask is empty!!")
+    cpr = Print_and_log(verbose=verbose)
     _print = cpr._print
     if groups_to_get is not None:
         _print("""WARNING!! Only specify groups_to_get is you do NOT mind
@@ -475,7 +465,7 @@ def get_single_annotation_document_from_contours(
         DSA-style annotation document ready to be post for viewing.
 
     """
-    cpr = Conditional_Print(verbose=verbose)
+    cpr = Print_and_log(verbose=verbose)
     _print = cpr._print
 
     def _get_fillColor(lineColor):
