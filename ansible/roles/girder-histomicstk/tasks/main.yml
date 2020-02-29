@@ -5,7 +5,7 @@
 
 - name: NodeJS | Add PPA
   apt_repository:
-    repo: "deb https://deb.nodesource.com/node_6.x {{ ansible_distribution_release }} main"
+    repo: "deb https://deb.nodesource.com/node_8.x {{ ansible_distribution_release }} main"
   become: true
 
 - name: NodeJS | Install package
@@ -15,7 +15,7 @@
   become: true
 
 - name: NodeJS | Update npm
-  command: "npm install -g npm"
+  command: "npm install -g npm@6.10.3"
   become: true
 
 - name: Install system package dependencies
@@ -26,8 +26,9 @@
       - apparmor
       - apt-transport-https
       - ca-certificates
+      - cmake
       - fuse
-      - libjpeg-dev
+      - libfontconfig
       - libmemcached-dev
       - libxslt1-dev
       - memcached
@@ -40,7 +41,7 @@
   become: true
 
 - name: Install node-gyp
-  shell: "npm install -g node-gyp-install && /usr/lib/node_modules/node-gyp-install/bin.js"
+  shell: "npm install -g node-gyp-install && node-gyp-install"
   become: true
 
 - name: Clone slicer_cli_web plugin
@@ -96,6 +97,13 @@
     state: present
   become: true
 
+- name: Install Cython (must be installed before HistomicsTK plugin)
+  pip:
+    name: Cython
+    extra_args: "-U --upgrade-strategy eager"
+    state: present
+  become: true
+
 - name: Install numpy (must be installed before large_image plugin)
   pip:
     name: numpy
@@ -108,10 +116,6 @@
     name: six
     extra_args: "-U --upgrade-strategy eager"
     state: present
-  become: true
-
-- name: Install pylibtiff from github
-  pip: name='git+https://github.com/manthey/pylibtiff@0d89ae2edd37db6c84d0add7ba89ad4b87a0f4e9' extra_args='--force-reinstall --ignore-installed --upgrade --no-cache-dir' editable=False
   become: true
 
 - name: Install our external girder plugins - xtk_demo
@@ -182,6 +186,14 @@
   when: docker is undefined
   with_items:
     - requirements_dev.txt
+
+# Downgrade cheroot
+- name: Downgrade cheroot version to work with older CherryPy.
+  pip:
+    name: "cheroot<8"
+    state: present
+  become: true
+
 
 # Always have a build directory
 - name: Ensure build directory exists

@@ -2,41 +2,45 @@
   border-bottom 1px solid #ececec
   padding-bottom 8px
   margin-bottom 5px
+  display flex
 
   button.btn
     padding 2px 5px
     margin 0
     background none
 
-  input[type="range"]
-    width 93px
-    float right
-    margin-left 10px
-    margin-top 2px
+  .h-annotation-opacity-container,
+  .h-annotation-fill-opacity-container
+    flex 1 1 0
+    position relative
+    margin 2px 5px
 
 .h-annotation
-    padding 2px
-    line-height 1.1
-    font-weight initial
-    margin-left 5px
-    border-radius 3px
-    span
-        cursor pointer
-    .h-float-left
-        float left
-        margin-right 0.5em
+  padding 2px
+  line-height 1.1
+  font-weight initial
+  margin-left 5px
+  border-radius 3px
+  span
+    cursor pointer
+  .h-float-left
+    float left
+    margin-right 0.5em
 
-    .h-annotation-right
-        float right
+  .h-annotation-right
+    float right
 
-    a
-        color #333
-    .h-annotation-name
-        width 170px
-        display inline-block
-        text-overflow ellipsis
-        white-space nowrap
-        overflow hidden
+  a
+    color #333
+  .h-annotation-name
+    width 170px
+    display inline-block
+    text-overflow ellipsis
+    white-space nowrap
+    overflow hidden
+  span.partial
+    -webkit-mask-image linear-gradient(225deg, #000, rgba(0, 0, 0, 0))
+    mask-image linear-gradient(225deg, #000, rgba(0, 0, 0, 0))
 
 .h-annotation-group-name
   font-weight bold
@@ -77,3 +81,14 @@
 
 .h-annotation:hover
   background-color #eee
+
+.h-annotation-selector
+  .s-panel-title
+    .save-mark
+      display none
+.h-annotation-selector.saving
+  .s-panel-title
+    .icon-tags
+      display none
+    .save-mark
+      display inherit

@@ -37,6 +37,7 @@ var AnnotationSelector = Panel.extend({
         'change #h-toggle-interactive': 'toggleInteractiveMode',
         'input #h-annotation-opacity': '_changeGlobalOpacity',
         'input #h-annotation-fill-opacity': '_changeGlobalFillOpacity',
+        'click .h-annotation-select-by-region': 'selectAnnotationByRegion',
         'click .h-annotation-group-name': '_toggleExpandGroup'
     }),
 
@@ -175,7 +176,11 @@ var AnnotationSelector = Panel.extend({
                     model.unset('displayed');
                     model.unset('highlight');
                     this.collection.remove(model);
-                    model.destroy();
+                    if (model._saving) {
+                        model._saveAgain = 'delete';
+                    } else {
+                        model.destroy();
+                    }
                 }
             });
         }
@@ -207,6 +212,15 @@ var AnnotationSelector = Panel.extend({
         if (!this.parentItem || !this.parentItem.id) {
             return;
         }
+        // if any annotations are saving, defer this
+        if (!this.viewer._saving) {
+            this.viewer._saving = {};
+        }
+        delete this.viewer._saving.refresh;
+        if (Object.keys(this.viewer._saving).length) {
+            this.viewer._saving.refresh = true;
+            return;
+        }
         var models = this.collection.indexBy(_.property('id'));
         this.collection.offset = 0;
         this.collection.fetch({itemId: this.parentItem.id}).then(() => {
@@ -219,6 +233,8 @@ var AnnotationSelector = Panel.extend({
                         if (model.get('_version') !== models[model.id].get('_version')) {
                             model.refresh(true);
                             model.set('displayed', true);
+                        } else {
+                            model._centroids = models[model.id]._centroids;
                         }
                     }
                     // set without triggering a change; a change reloads and
@@ -343,12 +359,60 @@ var AnnotationSelector = Panel.extend({
     },
 
     _saveAnnotation(annotation) {
+        if (!this.viewer._saving) {
+            this.viewer._saving = {};
+        }
         if (!annotation._saving && !annotation._inFetch && !annotation.get('loading')) {
+            this.viewer._saving[annotation.id] = true;
+            this.$el.addClass('saving');
+            let lastSaveAgain = annotation._saveAgain;
             annotation._saving = true;
+            annotation._saveAgain = false;
             this.trigger('h:redraw', annotation);
-            annotation.save().always(() => {
+            annotation.save().fail(() => {
+                /* If we fail to save (possible because the server didn't
+                 * respond), try again, gradually backing off the frequency
+                 * of retries. */
+                annotation._saveAgain = Math.min(lastSaveAgain ? lastSaveAgain * 2 : 5, 300);
+            }).always(() => {
+                delete this.viewer._saving[annotation.id];
                 annotation._saving = false;
+                if (annotation._saveAgain !== undefined && annotation._saveAgain !== false) {
+                    if (annotation._saveAgain === 'delete') {
+                        annotation.destroy();
+                    } else if (!annotation._saveAgain) {
+                        this._saveAnnotation(annotation);
+                    } else {
+                        this.viewer._saving[annotation.id] = true;
+                        window.setTimeout(() => {
+                            if (annotation._saveAgain !== undefined && annotation._saveAgain !== false) {
+                                this._saveAnnotation(annotation);
+                            }
+                        }, annotation._saveAgain * 1000);
+                    }
+                }
+                if (Object.keys(this.viewer._saving).length === 1 && this.viewer._saving.refresh) {
+                    this._refreshAnnotations();
+                }
+                if (!Object.keys(this.viewer._saving).length || (Object.keys(this.viewer._saving).length === 1 && this.viewer._saving.refresh)) {
+                    this.$el.removeClass('saving');
+                }
             });
+        } else if (!annotation._inFetch && !annotation.get('loading')) {
+            /* if we are saving, flag that we need to save again after we
+             * finish as there are newer changes. */
+            if (annotation._saveAgain !== 'delete') {
+                annotation._saveAgain = 0;
+            }
+        } else {
+            annotation._saveAgain = false;
+            delete this.viewer._saving[annotation.id];
+            if (Object.keys(this.viewer._saving).length === 1 && this.viewer._saving.refresh) {
+                this._refreshAnnotations();
+            }
+            if (!Object.keys(this.viewer._saving).length || (Object.keys(this.viewer._saving).length === 1 && this.viewer._saving.refresh)) {
+                this.$el.removeClass('saving');
+            }
         }
     },
 
@@ -368,6 +432,31 @@ var AnnotationSelector = Panel.extend({
         this.collection.each((model) => {
             model.set('displayed', false);
         });
+    },
+
+    selectAnnotationByRegion() {
+        const btn = this.$('.h-annotation-select-by-region');
+        // listen to escape key
+        $(document).on('keydown.h-annotation-select-by-region', (evt) => {
+            if (evt.keyCode === 27) {
+                btn.removeClass('active');
+                $(document).off('keydown.h-annotation-select-by-region');
+                this.parentView.trigger('h:selectElementsByRegionCancel');
+            }
+        });
+        this.listenToOnce(this.parentView, 'h:selectedElementsByRegion', () => {
+            btn.removeClass('active');
+            $(document).off('keydown.h-annotation-select-by-region');
+        });
+
+        if (!btn.hasClass('active')) {
+            btn.addClass('active');
+            this.parentView.trigger('h:selectElementsByRegion');
+        } else {
+            btn.removeClass('active');
+            $(document).off('keydown.h-annotation-select-by-region');
+            this.parentView.trigger('h:selectElementsByRegionCancel');
+        }
     },
 
     _highlightAnnotation(evt) {

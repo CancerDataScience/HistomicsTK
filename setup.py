@@ -3,7 +3,7 @@
 
 from __future__ import print_function
 
-import json
+import os
 import sys
 
 from setuptools import find_packages
@@ -18,23 +18,33 @@ except ImportError:
     sys.exit(1)
 
 
-with open('README.rst') as readme_file:
+with open('README.rst', 'rt') as readme_file:
     readme = readme_file.read()
 
-with open('HISTORY.rst') as history_file:
-    history = history_file.read()
 
-with open('plugin.json') as f:
-    pkginfo = json.load(f)
+def prerelease_local_scheme(version):
+    """
+    Return local scheme version unless building on master in CircleCI.
 
-with open('LICENSE') as f:
-    license_str = f.read()
+    This function returns the local scheme version number
+    (e.g. 0.0.0.dev<N>+g<HASH>) unless building on CircleCI for a
+    pre-release in which case it ignores the hash and produces a
+    PEP440 compliant pre-release version number (e.g. 0.0.0.dev<N>).
+    """
+    from setuptools_scm.version import get_local_node_and_date
+
+    if os.getenv('CIRCLE_BRANCH') in {'master'}:
+        return ''
+    else:
+        return get_local_node_and_date(version)
+
 
 setup(
     name='histomicstk',
-    version=pkginfo['version'],
-    description=pkginfo['description'],
-    long_description=readme + '\n\n' + history,
+    use_scm_version={'local_scheme': prerelease_local_scheme},
+    description='A Python toolkit for Histopathology Image Analysis',
+    long_description=readme,
+    long_description_content_type='text/x-rst',
     author='Kitware, Inc.',
     author_email='developers@digitalslidearchive.net',
     url='https://github.com/DigitalSlideArchive/HistomicsTK',
@@ -43,14 +53,12 @@ setup(
         'histomicstk': 'histomicstk',
     },
     include_package_data=True,
-    # package_data={
-    #    '': ['*.rst', '*.txt', 'LICENSE*', '*.json', '*.xml', '*.pyx'],
-    #     'histomicstk': ['*.rst', '*.txt', 'LICENSE*', '*.json', '*.xml', '*.pyx'],
-    # },
     setup_requires=[
+        'setuptools-scm',
         'Cython>=0.25.2',
         'scikit-build>=0.8.1',
         'cmake>=0.6.0',
+        'numpy>=1.12.1',
     ],
     install_requires=[
         'ctk-cli>=1.5',
@@ -58,9 +66,15 @@ setup(
         'nimfa>=1.3.2',
         'numpy>=1.12.1',
         'scipy>=0.19.0',
+        'Pillow>=3.2.0',
         'pandas>=0.19.2',
         'scikit-image>=0.14.2',
-        'scikit-learn>=0.18.1',
+        'scikit-learn>=0.18.1' + ('' if sys.version_info >= (3, ) else ',<0.21'),
+        'imageio>=2.3.0',
+        'shapely[vectorized]',
+        'opencv-python',
+        'matplotlib',
+        'sqlalchemy',
         # deep learning packages
         'h5py>=2.7.1',
         'keras>=2.0.8',
@@ -69,12 +83,17 @@ setup(
         'dask>=1.1.0',
         'distributed>=1.21.6',
         'tornado',
+        'fsspec>=0.3.3;python_version>="3"',
         # large image sources
         'large-image-source-tiff',
         'large-image-source-openslide',
+        'large-image-source-ometiff',
         'large-image-source-pil',
+        # for interaction with girder
+        'girder_client',
+        'pyvips',
     ],
-    license=license_str,
+    license='Apache Software License 2.0',
     keywords='histomicstk',
     classifiers=[
         'Development Status :: 4 - Beta',
@@ -84,7 +103,7 @@ setup(
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: 3.7'
+        'Programming Language :: Python :: 3.7',
         'Topic :: Scientific/Engineering :: Artificial Intelligence',
         'Topic :: Software Development :: Libraries :: Python Modules',
     ],

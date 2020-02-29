@@ -1,6 +1,6 @@
 Vagrant.configure("2") do |config|
+  # 18.04 also works (change in both locations)
   config.vm.box = "bento/ubuntu-16.04"
-
 
   if Vagrant.has_plugin?("vagrant-cachier")
     config.cache.scope = :box
@@ -37,7 +37,7 @@ Vagrant.configure("2") do |config|
     if provisioner_type == "ansible_local"
       ansible.provisioning_path = "/vagrant"
       ansible.install_mode = "pip"
-      ansible.version = "2.4.4.0"
+      # ansible.version = "2.4.4.0"
     end
   end
 end
