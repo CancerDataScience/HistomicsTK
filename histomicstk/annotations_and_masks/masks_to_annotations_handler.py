@@ -145,12 +145,20 @@ def _get_contours_df(
 
     # pad with zeros to be able to detect edge contours later
     pad_margin = 50
-    MASK = np.pad(MASK, pad_margin, 'constant')
+    pad_value = 0
+    while (GTCodes_df.GT_code == pad_value).any():
+        pad_value += 1
+    MASK = np.pad(MASK, pad_margin, 'constant', constant_values=pad_value)
 
     # Go through unique groups one by one -- each group (i.e. GTCode)
     # is extracted separately by binarizing the multi-class mask
     if groups_to_get is None:
         groups_to_get = list(GTCodes_df.index)
+    else:
+        groups_to_get = [
+            GTCodes_df[GTCodes_df.group == group].head(1).index[0]
+            if (GTCodes_df.group == group).any() else group
+            for group in groups_to_get]
     contours_df = DataFrame()
 
     for nestgroup in groups_to_get:
@@ -291,7 +299,7 @@ def get_contours_from_mask(
             rgb format. eg. rgb(255,0,0).
     groups_to_get : None
         if None (default) then all groups (ground truth labels) will be
-        extracted. Otherwise pass a list fo strings like ['mostly_tumor',].
+        extracted. Otherwise pass a list of strings like ['mostly_tumor',].
     MIN_SIZE : int
         minimum bounding box size of contour
     MAX_SIZE : None
@@ -510,7 +518,7 @@ def get_single_annotation_document_from_contours(
             "lineWidth": lineWidth,
             "closed": True,
             "points": coords,
-            "label": {'value': nest['group']},
+            "label": {'value': nest['label']},
         }
         if opacity > 0:
             annotation_style["fillColor"] = _get_fillColor(nest['color'])
@@ -542,7 +550,8 @@ def get_annotation_documents_from_contours(
         using get_contours_from_mask(). If you have contours using some other
         method, just make sure the dataframe follows the same schema as the
         output from get_contours_from_mask(). You may find a sample dataframe
-        in thie repo at ./plugin_tests/test_files/sample_contours_df.tsv
+        in the repo at
+        ./tests/test_files/annotations_and_masks/sample_contours_df.tsv.
         The following columns are relevant for this method.
 
         group : str
@@ -584,13 +593,16 @@ def get_annotation_documents_from_contours(
             'F': 1.0,
             'X_OFFSET': 0,
             'Y_OFFSET': 0,
-            'opacity': 0.3,
+            'opacity': 0,
             'lineWidth': 4.0,
         }
     if separate_docs_by_group:
         contours_df.loc[:, 'doc_group'] = contours_df.loc[:, 'group']
     else:
         contours_df.loc[:, 'doc_group'] = 'default'
+
+    if 'label' not in contours_df.columns:
+        contours_df.loc[:, 'label'] = contours_df.loc[:, 'group']
 
     # Each style goes to separate document(s) if sepate_docs_by_group
     annotation_docs = []

@@ -1,6 +1,6 @@
 import numpy as np
 from skimage import color
-from sklearn.neighbors.kde import KernelDensity
+from sklearn.neighbors import KernelDensity
 from scipy.stats import norm
 from scipy.optimize import fmin_slsqp
 from scipy import signal
@@ -79,7 +79,7 @@ def simple_mask(im_rgb, bandwidth=2, bgnd_std=2.5, tissue_std=30,
     if len(Peaks) > 1:
         TissuePeak = Peaks[yHist[Peaks[1:]].argmax() + 1]
     else:  # no peak found - take initial guess at 2/3 distance from origin
-        TissuePeak = np.asscalar(xHist[int(np.round(0.66*xHist.size))])
+        TissuePeak = xHist[int(np.round(0.66*xHist.size))].item()
 
     # analyze background peak to estimate variance parameter via FWHM
     BGScale = estimate_variance(xHist, yHist, BGPeak)

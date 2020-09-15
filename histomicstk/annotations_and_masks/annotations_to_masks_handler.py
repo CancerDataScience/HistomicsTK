@@ -11,7 +11,10 @@ import numpy as np
 from pandas import DataFrame
 from imageio import imwrite
 from shapely.geometry.polygon import Polygon
-import matplotlib.pylab as plt
+try:
+    import matplotlib.pyplot as plt
+except ImportError:
+    pass
 from matplotlib.patches import Polygon as mpPolygon
 import io
 from PIL import Image
@@ -212,8 +215,8 @@ def get_roi_mask(
 
 
 def get_mask_from_slide(
-        gc, slide_id, GTCodes_dict, roiinfo, slide_annotations,
-        element_infos, sf=1.0, get_roi_mask_kwargs=dict()):
+        GTCodes_dict, roiinfo, slide_annotations,
+        element_infos, sf=1.0, get_roi_mask_kwargs=None):
     """Parse region from the slide and get its corresponding labeled mask.
 
     This is a wrapper around get_roi_mask() which should be referred to for
@@ -223,14 +226,6 @@ def get_mask_from_slide(
 
     Parameters
     -----------
-    gc : object
-        girder client object to make requests, for example:
-        gc = girder_client.GirderClient(apiUrl = APIURL)
-        gc.authenticate(interactive=True)
-
-    slide_id : str
-        girder id for item (slide)
-
     GTCodes_dict : dict
         the ground truth codes and information dict.
         This is a dict that is indexed by the annotation group name and
@@ -253,13 +248,6 @@ def get_mask_from_slide(
 
     sf : float
         scale factor to multiple coordinates (eg 0.5 would halve size)
-
-    mode : str
-        one of must be in ['wsi', 'min_bounding_box', 'manual_bounds']
-        this specifies which part of the slide to get the mask from. If it
-        - wsi: get scaled up/down version of mask of whole slide
-        - min_bounding_box: get minimum box for all annotations in slide
-        - manual_bounds: use given ROI bounds provided in roiinfo
 
     slide_annotations : list
         Make sure you have used
@@ -289,6 +277,8 @@ def get_mask_from_slide(
 
     """
     # convert from dict to required dataframe
+    if get_roi_mask_kwargs is None:
+        get_roi_mask_kwargs = dict()
     GTCodes = DataFrame.from_dict(GTCodes_dict, orient='index')
 
     # some sanity checks
@@ -383,7 +373,12 @@ def get_mask_from_slide(
 # %% =====================================================================
 
 
-def _visualize_annotations_on_rgb(rgb, ROI, contours_list, linewidth=0.2):
+def _visualize_annotations_on_rgb(
+        rgb, contours_list, linewidth=0.2, x_offset=0, y_offset=0,
+        text=False):
+
+    # later on flipped by matplotlib for weird reason
+    rgb = np.flipud(rgb)
 
     fig = plt.figure(
         figsize=(rgb.shape[1] / 1000, rgb.shape[0] / 1000), dpi=100)
@@ -395,20 +390,31 @@ def _visualize_annotations_on_rgb(rgb, ROI, contours_list, linewidth=0.2):
     ax.set_xlim(0.0, rgb.shape[1])
     ax.set_ylim(0.0, rgb.shape[0])
 
-    patches = []
-
     for idx, ann in enumerate(contours_list):
+        xy = np.array([
+            [int(j) for j in ann[k].split(",")]
+            for k in ('coords_x', 'coords_y')]).T
+        xy[:, 0] = xy[:, 0] - x_offset
+        xy[:, 1] = rgb.shape[0] - (xy[:, 1] - y_offset) + 1
         polygon = mpPolygon(
-            xy=np.array([
-                [int(j) for j in ann[k].split(",")]
-                for k in ('coords_x', 'coords_y')]).T,
+            xy=xy,
             color=[int(j) / 255 for j in ann['color'].split(
                 'rgb(')[1][:-1].split(',')],
             closed=True, fill=False,
             linewidth=linewidth,
         )
         ax.add_patch(polygon)
-        patches.append(polygon)
+
+        # add label text
+        if text:
+            txtshift = 0
+            size = 1e-4 * rgb.shape[1]
+            ax.text(
+                int(np.min(xy[:, 0])),
+                int(np.max(xy[:, 1])) - txtshift,
+                ann['group'][:5],
+                color='w', fontsize=size, backgroundcolor="none",
+            )
 
     ax.axis('off')
     fig.subplots_adjust(bottom=0, top=1, left=0, right=1)
@@ -416,7 +422,7 @@ def _visualize_annotations_on_rgb(rgb, ROI, contours_list, linewidth=0.2):
     buf = io.BytesIO()
     plt.savefig(buf, format='png', pad_inches=0, dpi=1000)
     buf.seek(0)
-    rgb_vis = np.flipud(np.uint8(Image.open(buf))[..., :3])
+    rgb_vis = np.uint8(Image.open(buf))[..., :3]
     plt.close()
 
     return rgb_vis
@@ -456,7 +462,7 @@ def _sanity_checks(
         assert get_rgb, "cannot get visualization without rgb."
 
     if not get_roi_mask_kwargs['crop_to_roi']:
-        assert ((not get_rgb) and (not get_visualization)), \
+        assert (not get_rgb) and (not get_visualization), \
             "Handling overflowing annotations while also getting RGB is" \
             "not currently supported."
 
@@ -539,7 +545,7 @@ def get_image_and_mask_from_slide(
         MPP=5.0, MAG=None, mode='min_bounding_box',
         bounds=None, idx_for_roi=None,
         slide_annotations=None, element_infos=None,
-        get_roi_mask_kwargs=dict(), get_contours_kwargs=dict(), linewidth=0.2,
+        get_roi_mask_kwargs=None, get_contours_kwargs=None, linewidth=0.2,
         get_rgb=True, get_contours=True, get_visualization=True):
     """Parse region from the slide and get its corresponding labeled mask.
 
@@ -632,13 +638,16 @@ def get_image_and_mask_from_slide(
     --------
     dict
         Results dict containing one or more of the following keys
-        - bounds: dict of bounds at scan magnification
-        - ROI: (mxn) labeled image (mask)
-        - rgb: (mxnx3 np array) corresponding rgb image
-        - contours: dict
-        - visualization: (mxnx3 np array) visualization overlay
+        bounds: dict of bounds at scan magnification
+        ROI - (mxn) labeled image (mask)
+        rgb - (mxnx3 np array) corresponding rgb image
+        contours - list, each entry is a dict version of a row from the output
+        of masks_to_annotations_handler.get_contours_from_mask()
+        visualization - (mxnx3 np array) visualization overlay
 
     """
+    get_roi_mask_kwargs = get_roi_mask_kwargs or {}
+    get_contours_kwargs = get_contours_kwargs or {}
     # important sanity checks
     (MPP, MAG, mode, bounds, idx_for_roi, get_roi_mask_kwargs,
      get_rgb, get_contours, get_visualization) = _sanity_checks(
@@ -678,10 +687,9 @@ def get_image_and_mask_from_slide(
             idx_for_roi=idx_for_roi, **get_roi_mask_kwargs)
     else:
         ROI, _ = get_mask_from_slide(
-            gc=gc, slide_id=slide_id, GTCodes_dict=GTCodes_dict,
-            roiinfo=copy.deepcopy(bounds), sf=sf,
+            GTCodes_dict=GTCodes_dict, roiinfo=copy.deepcopy(bounds),
             slide_annotations=slide_annotations, element_infos=element_infos,
-            get_roi_mask_kwargs=get_roi_mask_kwargs)
+            sf=sf, get_roi_mask_kwargs=get_roi_mask_kwargs)
 
     # get RGB
     if get_rgb:
@@ -705,8 +713,7 @@ def get_image_and_mask_from_slide(
     # get visualization of annotations on RGB
     if get_visualization:
         result['visualization'] = _visualize_annotations_on_rgb(
-            rgb=rgb, ROI=ROI, contours_list=contours_list,
-            linewidth=linewidth)
+            rgb=rgb, contours_list=contours_list, linewidth=linewidth)
 
     return result
 
@@ -715,7 +722,7 @@ def get_image_and_mask_from_slide(
 
 def get_all_rois_from_slide(
         gc, slide_id, GTCodes_dict, save_directories,
-        get_image_and_mask_from_slide_kwargs=dict(),
+        get_image_and_mask_from_slide_kwargs=None,
         slide_name=None, verbose=True, monitorPrefix="", ):
     """Parse annotations and saves ground truth masks for ALL ROIs.
 
@@ -800,7 +807,7 @@ def get_all_rois_from_slide(
         'get_visualization': True,
     }
 
-    kvp = get_image_and_mask_from_slide_kwargs  # for easy referencing
+    kvp = get_image_and_mask_from_slide_kwargs or {}  # for easy referencing
     for k, v in default_keyvalues.items():
         if k not in kvp.keys():
             kvp[k] = v
@@ -851,7 +858,7 @@ def get_all_rois_from_slide(
         ROINAMESTR = "%s_left-%d_top-%d_bottom-%d_right-%d" % (
             slide_name,
             roi_out['bounds']['XMIN'], roi_out['bounds']['YMIN'],
-            roi_out['bounds']['XMAX'], roi_out['bounds']['YMAX'])
+            roi_out['bounds']['YMAX'], roi_out['bounds']['XMAX'])
 
         for imtype in ['ROI', 'rgb', 'visualization']:
             if imtype in roi_out.keys():
